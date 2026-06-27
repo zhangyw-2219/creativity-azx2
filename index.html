@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创造力实验</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        #app { max-width: 900px; width: 100%; background: #ffffff; border-radius: 20px; padding: 30px 40px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); }
+        .timer { position: sticky; top: 0; background: #fff; z-index: 10; padding: 8px 0; text-align: right; font-size: 18px; font-weight: bold; color: #1a2a4a; border-bottom: 2px solid #e2e8f0; margin-bottom: 16px; transition: color 0.3s, border-color 0.3s; }
+        .timer.warning { color: #dc2626; border-bottom-color: #fee2e2; }
+        .timer.critical { color: #dc2626; border-bottom-color: #fee2e2; animation: blink 1s infinite; }
+        .timer.shake { animation: shake 0.5s ease-out; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes shake { 0%, 100% { transform: scale(1.2) rotate(0deg); } 25% { transform: scale(1.2) rotate(-3deg); } 50% { transform: scale(1.2) rotate(3deg); } 75% { transform: scale(1.2) rotate(-2deg); } }
+        .highlight { color: #dc2626; font-weight: bold; }
+        .instruction-box { background: #f0f7ff; border-left: 5px solid #3b7cff; padding: 18px 24px; border-radius: 8px; margin: 12px 0 20px 0; font-size: 15px; line-height: 1.8; color: #1a2a4a; }
+        .warning-box { background: #fff3cd; border-left: 5px solid #ffc107; padding: 14px 20px; border-radius: 8px; margin: 12px 0; font-size: 14px; line-height: 1.6; }
+        .btn { background: #3b7cff; color: #fff; border: none; border-radius: 10px; padding: 12px 36px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.2s; margin: 8px 4px; }
+        .btn:hover { background: #2a5fc7; }
+        .btn-secondary { background: #e2e8f0; color: #1a2a4a; }
+        .text-center { text-align: center; }
+        .mt-20 { margin-top: 20px; }
+        .dynamic-input-container input[type="text"],
+        .dynamic-input-container textarea { display: block !important; width: 100% !important; padding: 12px 16px !important; margin: 6px 0 !important; border: 1.5px solid #d0d7de; border-radius: 8px; font-size: 15px; background: #fafbfc; transition: border-color 0.2s; font-family: inherit; box-sizing: border-box; height: auto; min-height: 48px; line-height: 1.5; }
+        .dynamic-input-container input[type="text"]:focus,
+        .dynamic-input-container textarea:focus { border-color: #3b7cff; outline: none; background: #fff; box-shadow: 0 0 0 3px rgba(59,124,255,0.12); }
+        .dynamic-input-container textarea { min-height: 80px; resize: vertical; }
+        .rat-grid { display: grid; gap: 12px; margin: 12px 0; }
+        .rat-item { display: flex; align-items: center; gap: 16px; padding: 8px 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; flex-wrap: wrap; }
+        .rat-item .clues { font-size: 22px; font-weight: 600; letter-spacing: 6px; min-width: 100px; color: #0b1e3a; }
+        .rat-item input[type="text"] { flex: 1; padding: 8px 14px; border: 1.5px solid #d0d7de; border-radius: 6px; font-size: 18px; text-align: center; background: #fff; min-width: 60px; }
+        .rat-item input[type="text"]:focus { border-color: #3b7cff; outline: none; box-shadow: 0 0 0 3px rgba(59,124,255,0.12); }
+        .rat-item .qnum { font-size: 14px; color: #6b7a8f; min-width: 30px; }
+        .matrix-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+        .matrix-table th, .matrix-table td { border: 1px solid #e2e8f0; padding: 8px 4px; text-align: center; vertical-align: middle; }
+        .matrix-table th { background: #f1f5f9; font-weight: 600; color: #1a2a4a; }
+        .matrix-table td:first-child { text-align: left; padding-left: 12px; background: #fafbfc; font-weight: 500; }
+        .matrix-table td .radio-cell { display: inline-block; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d0d7de; cursor: pointer; transition: all 0.2s; position: relative; }
+        .matrix-table td .radio-cell.selected { border-color: #3b7cff; background: #3b7cff; }
+        .matrix-table td .radio-cell.selected::after { content: ''; position: absolute; top: 4px; left: 4px; width: 8px; height: 8px; background: #fff; border-radius: 50%; }
+        .matrix-table td .radio-cell input[type="radio"] { display: none; }
+        .question-block { padding: 12px 0; border-bottom: 1px solid #edf2f7; }
+        .question-block:last-child { border-bottom: none; }
+        .question-text { font-size: 15px; line-height: 1.6; color: #1a2a4a; margin-bottom: 6px; }
+        .question-text .qnum { display: inline-block; background: #eef3fc; color: #1a4b8c; font-weight: 600; font-size: 13px; padding: 2px 12px; border-radius: 12px; margin-right: 8px; }
+        .options-row { display: flex; flex-wrap: wrap; gap: 10px 20px; padding-left: 8px; }
+        .options-row label { font-size: 14px; color: #2d3748; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+        .options-row input[type="radio"] { width: 16px; height: 16px; accent-color: #3b7cff; cursor: pointer; }
+        .bonus-input { margin: 6px 0 6px 28px; padding: 8px 14px; border: 1.5px solid #d0d7de; border-radius: 8px; width: 90%; font-size: 14px; }
+        .sig-combo { background: #f2f6fe; padding: 14px 20px; border-radius: 10px; margin: 10px 0; display: flex; flex-wrap: wrap; gap: 12px 24px; font-size: 15px; }
+        .progress-bar { width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 16px 0 8px 0; overflow: hidden; }
+        .progress-bar .fill { height: 100%; background: #3b7cff; width: 0%; transition: width 0.3s ease; }
+        .progress-text { text-align: right; font-size: 13px; color: #8a9aa8; }
+        .data-output { background: #1e293b; color: #e2e8f0; padding: 16px 20px; border-radius: 10px; font-family: "Consolas", monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; margin: 12px 0; }
+        @media (max-width: 600px) {
+            #app { padding: 20px 16px; }
+            .rat-item { flex-wrap: wrap; gap: 8px; }
+            .rat-item .clues { font-size: 18px; min-width: 70px; letter-spacing: 4px; }
+            .matrix-table { font-size: 12px; }
+            .matrix-table th, .matrix-table td { padding: 4px 2px; }
+        }
+    </style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+    // ================================================================
+    //  1. 数据定义
+    // ================================================================
+    const autData = [
+        { id: 'box', title: '纸盒', instruction: `许多人把空纸盒都扔掉了，而它们却有着成千上万种有趣而不寻常的用处。在以下的空栏中，请列出你所能想象的这些有趣和不寻常的用处。你不要受盒子的体积和数目的限制，也不要局限于你所见所闻的用处，尽量考虑多种新奇的用法。<br><br><strong>想法越多越好，越新奇越好，试想出其他人想不到的用处。</strong>` },
+        { id: 'chopstick', title: '筷子', instruction: `许多人把旧筷子都扔掉了，而它们却有着成千上万种有趣而不寻常的用处。在以下的空栏中，请列出你所能想象的这些有趣和不寻常的用处。你不要受筷子的长短和数目的限制，也不要局限于你所见所闻的用处，尽量考虑多种新奇的用法。<br><br><strong>想法越多越好，越新奇越好，试想出其他人想不到的用处。</strong>` }
+    ];
+    const ratData = [
+        { id: 1, clues: '氛、服、争', answer: '气' }, { id: 2, clues: '妥、完、改', answer: '善' },
+        { id: 3, clues: '漫、辈、久', answer: '长' }, { id: 4, clues: '忆、载、者', answer: '记' },
+        { id: 5, clues: '贞、劳、纵', answer: '操' }, { id: 6, clues: '采、合、募', answer: '集' },
+        { id: 7, clues: '顾、过、旅', answer: '客' }, { id: 8, clues: '好、探、厌', answer: '讨' },
+        { id: 9, clues: '俗、波、景', answer: '风' }, { id: 10, clues: '老、父、律', answer: '师' },
+        { id: 11, clues: '雀、朵、彩', answer: '云' }, { id: 12, clues: '倍、值、个', answer: '数' },
+        { id: 13, clues: '现、华、童', answer: '年' }, { id: 14, clues: '想、由、处', answer: '理' },
+        { id: 15, clues: '别、赏、定', answer: '鉴' }, { id: 16, clues: '丁、志、硕', answer: '壮' },
+        { id: 17, clues: '韵、望、尾', answer: '声' }, { id: 18, clues: '音、应、影', answer: '响' },
+        { id: 19, clues: '翻、优、轨', answer: '越' }, { id: 20, clues: '留、保、款', answer: '存' },
+        { id: 21, clues: '染、激、情', answer: '感' }, { id: 22, clues: '住、功、所', answer: '居' },
+        { id: 23, clues: '管、课、练', answer: '教' }, { id: 24, clues: '偶、搭、乐', answer: '配' },
+        { id: 25, clues: '行、流、里', answer: '程' }, { id: 26, clues: '词、运、带', answer: '动' },
+        { id: 27, clues: '劫、司、良', answer: '机' }, { id: 28, clues: '卓、习、参', answer: '见' },
+        { id: 29, clues: '孔、地、全', answer: '面' }, { id: 30, clues: '害、青、伐', answer: '杀' }
+    ];
+    const fitData = [
+        { id: 'a3', elem1: '台灯', elem2: '净水器', target: '鼓励规律饮水', type: 'personal' },
+        { id: 'd1', elem1: '摄像头', elem2: '感应灯', target: '提升居家安全', type: 'personal' },
+        { id: 'e1', elem1: '吸尘器', elem2: '日历应用', target: '提高家务处理效率', type: 'personal' },
+        { id: 'A1', elem1: '电动汽车', elem2: '旅游点评网站', target: '推广环境友好型旅行', type: 'social' },
+        { id: 'C1', elem1: '数字标牌（或电子告示牌）', elem2: '无人机', target: '增强公众对土地保护的意识', type: 'social' },
+        { id: 'D2', elem1: '图书馆系统', elem2: '翻新笔记本电脑', target: '在贫困社区促进科技使用机会', type: 'social' }
+    ];
+    const domainDescriptions = {
+        '视觉艺术': '包含书法、绘画、雕塑、摄影等',
+        '音乐': '包含乐器演奏、作曲、演唱等',
+        '舞蹈': '包含编舞、舞蹈表演等',
+        '建筑设计': '包含建筑方案设计、室内设计等',
+        '创造性写作': '包含诗歌、小说、剧本创作等',
+        '幽默': '包含笑话创作、喜剧表演等',
+        '发明': '包含实用工具、软件、设备发明等',
+        '科学探究': '包含科学研究、实验设计等',
+        '舞台、影视表演或导演': '包含戏剧表演、影视导演等',
+        '烹饪艺术': '包含菜品创作、烹饪创新等'
+    };
+    const ccaqData = [
+        { domain: '视觉艺术', items: ['在这方面我没有接受过训练或者公认的才能。','我学过这方面的课程。','人们对我在这方面的才能做出过评价。','我曾在非专业的书法（或绘画、雕塑）比赛中一次或多次获奖。','我的作品曾在画廊（或美术馆）展出过。','我的作品曾被地方出版物评论过。/我的作品曾在地区专业比赛中获奖。','我的作品曾经被售出过。/我的作品曾在省级专业比赛中获奖。','我的作品曾在一个国家级出版物上受到过评论。/我的作品曾在国家（或国际）专业比赛中获奖。'], bonusIndices: [7] },
+        { domain: '音乐', items: ['在这方面我没有接受过训练或者公认的才能。','我能熟练地演奏一种或多种乐器。','我曾经和一个有一定认可度的管弦乐队或流行乐队一起演出过。','我曾经尝试着创作过一首乐曲。','我的音乐才能曾经被一个地区出版物评价过。/我的表演（或创作）的音乐作品在一般的比赛中获过奖。','我的作品曾被录制过。/我表演（或创作）的音乐作品在地区专业比赛中获过奖。','我的作品的录制品曾被公开销售过。/我的表演（或创作）的音乐作品在省级专业比赛中获过奖。','我的作品在一个国家级出版物上受到过评论。/我的表演（或创作）的音乐作品在全国（或国际）专业比赛中获过奖。'], bonusIndices: [7] },
+        { domain: '舞蹈', items: ['在这方面我没有接受过训练或者公认的才能。','我曾经在一个有一定认可度的舞蹈团体里跳过舞。','我曾经给舞蹈演出进行过编舞。','我的编舞曾被公开演出过。','我曾经给小范围专业演出或地区级演出进行编舞。/我的舞蹈（编舞作品）在一般性的比赛中获过奖。','我的舞蹈才能（编舞作品）曾经在地方出版物上受到评价。/我的编舞作品在地区专业比赛中获过奖。','我曾经给省级演出进行舞蹈编导。/我的编舞作品在省级专业比赛中获过奖。','我的编舞曾经被一个国家级出版物认可。/我曾经全国性演出进行舞蹈编舞。/我的编舞作品在全国（或国际）专业比赛中获过奖。'], bonusIndices: [7] },
+        { domain: '建筑设计', items: ['在这方面我没有接受过训练或者公认的才能。','我曾设计过一个原创的建筑方案。','我设计的一个建筑方案被建造出来过。','我的一个原创建筑设计曾经被售出。','我的一个建筑设计方案被专业地建造出来了。/我的建筑设计在一般性的比赛中获过奖。','我的建筑设计在地区专业比赛中获过奖。','我的建筑设计曾经在一个地方出版物上得到认可。/我的建筑设计在省级专业比赛中获过奖。','我的建筑设计曾经在一个国家级出版物上得到认可。/我的建筑设计在全国（或国际）专业比赛中获过奖。'], bonusIndices: [7] },
+        { domain: '创造性写作', items: ['在这方面我没有接受过训练或者公认的才能。','我写过一篇原创性的短篇作品（诗歌或者短篇故事）。','我的作品曾获得过奖项或奖金。','我曾经写过原创性的中篇或长篇作品（史诗或小说）。','我的作品曾经卖给一家出版社。/我的作品在一般性的比赛中获过奖。','我的一个作品已经被印刷并公开出售。/我的作品在地区专业比赛中获过奖。','我的作品在一个地方出版物上被评价过。/我的作品在省级专业比赛中获过奖。','我的作品在一个国家级出版物上被评论过。/我的作品在全国（或国际）专业比赛中获过奖。'], bonusIndices: [7] },
+        { domain: '幽默', items: ['在这方面我没有公认的才能。','人们经常评价我独特的幽默感。','我创造出的幽默作品经常被别人拿来用。','我给别人写过幽默作品。','我创作的幽默作品出版过。/我创作的幽默作品被专业演出过。','我做过专业的喜剧演员。/我创作的幽默作品在地方专业比赛中获过奖。','我（曾）是专业的喜剧作家。/我创作的幽默作品在省级专业比赛中获过奖。','我的幽默作品在国家级出版物上得到过认可。/我创作的幽默作品在全国（或国际）专业比赛中获过奖。'], bonusIndices: [7] },
+        { domain: '发明', items: ['在这方面我没有公认的才能。','我经常能发现家庭日常用品的新用途。','我曾经设计过一个发明并对其进行了改进。','我曾经编写过电脑软件。','我曾经给自己设计的发明做出过一个原型。/我的发明在一个普通比赛中获过奖。','我曾经把我的一个发明卖给我认识的人。/我的发明在地区专业比赛中获过奖。','我的一项发明获得过专利证书。/我的发明在省级专业比赛中获过奖。','我曾经把自己的一项发明卖给一家公司。/我的发明在全国（或国际）专业比赛中获过奖。'], bonusIndices: [6,7] },
+        { domain: '科学探究', items: ['在这方面我没有接受过训练或者公认的才能。','我经常思考如何解决一些科学问题。','我曾经在科学竞赛或其他地方性竞赛中获得过奖项。','我曾经因为在科学或医药方面的工作而获得了奖学金。','我是一篇发表在科学期刊上的论文的作者或合著者。/我曾在科学或医学领域的一般比赛中获奖。','我的作品曾经被其他科研人员引用。/我曾在科学或医学领域获得过地区专业奖项。','我曾获得从事科学或医学工作的资金支持。/我曾在科学或医学领域获得过省级专业奖项。','我曾在科学或医学领域获得过全国（或国际）专业奖项。'], bonusIndices: [6,7] },
+        { domain: '舞台、影视表演或导演', items: ['在这方面我没有接受过训练或者公认的才能。','我的舞台或影视表演能力或导演能力得到了部分同行的认可。','我的舞台或影视表演能力或导演能力在媒体上得到过认可。','我曾经在剧场或者电影中进行表演。/我曾导演过一部舞台剧或影视类作品。','我曾经在剧场或电影里进行演出并得到报酬。/我曾经指导过剧院演出或电影拍摄并得到报酬。','我曾因参加或执导舞台或影视演出而获得普通级别专业比赛的奖项。','我曾因参加或执导舞台或影视演出而获得中等级别专业比赛的奖项。','我的表演作品或执导作品在国家级出版物上得到过认可。/我曾因参加或执导舞台或影视演出而获得过重要专业比赛的奖项。'], bonusIndices: [7] },
+        { domain: '烹饪艺术', items: ['在这方面我没有接受过训练或者经验。','我经常对一些菜谱进行实验。','我的某个菜肴比较受顾客的喜爱。','我曾在或正在一家比较有知名度的餐厅做厨师。','我曾被邀请在重要活动中烹饪菜肴。/我的烹饪技能曾在一般性比赛中获奖。','我的食谱曾经获得过奖金或者奖项。/我的烹饪技能曾在地区专业比赛中获奖。','我曾获得过烹调艺术方面的证书。/我的烹饪技能曾在省级专业比赛中获奖。','我的食谱曾经在全国性出版物上出版过。/我的烹饪技能曾在全国（或国际）专业比赛中获奖。'], bonusIndices: [7] }
+    ];
+    const kdocsData = [
+        { id: 1, dim: '日常', text: '没钱的时候，能找到些有意思的事做来挣些钱' }, { id: 2, dim: '日常', text: '帮助其他人应对困难情境' },
+        { id: 3, dim: '日常', text: '教别人怎么做事' }, { id: 4, dim: '日常', text: '在工作和个人生活之间保持良好平衡' },
+        { id: 5, dim: '日常', text: '懂得如何让自己快乐' }, { id: 6, dim: '日常', text: '能够以健康的方式解决个人问题' },
+        { id: 7, dim: '日常', text: '想到帮助他人的新方法' }, { id: 8, dim: '日常', text: '选择最好的解决问题的方法' },
+        { id: 9, dim: '日常', text: '策划一次满足所有朋友需要的旅行或活动' }, { id: 10, dim: '日常', text: '调解两个朋友之间的争论或纠纷' },
+        { id: 11, dim: '日常', text: '使他人感到放松和自在' }, { id: 12, dim: '学术', text: '为报纸或杂志写纪实文章' },
+        { id: 13, dim: '学术', text: '在有需要时联系某个不熟悉的人以表达自己的想法' }, { id: 14, dim: '学术', text: '能从看似无关的角度去研究一个问题' },
+        { id: 15, dim: '学术', text: '用自己观点为有争议的话题进行辩论' }, { id: 16, dim: '学术', text: '能以最适当的方式处理一个问题' },
+        { id: 17, dim: '学术', text: '搜集最合适的论文或文章以支持某种观点' }, { id: 18, dim: '学术', text: '为自己不赞同的立场进行辩论' },
+        { id: 19, dim: '学术', text: '分析一本好书的主题' }, { id: 20, dim: '学术', text: '修改一个作品时知道如何整合批评和建议' },
+        { id: 21, dim: '学术', text: '能够对自己阅读的文章产生建设性的想法' }, { id: 22, dim: '学术', text: '为辩论题目想到新的思考角度' },
+        { id: 23, dim: '表现', text: '写一首诗' }, { id: 24, dim: '表现', text: '为一首有趣的歌曲填词' },
+        { id: 25, dim: '表现', text: '谱曲' }, { id: 26, dim: '表现', text: '创作一首新歌' },
+        { id: 27, dim: '表现', text: '学器乐' }, { id: 28, dim: '表现', text: '拍摄一个有趣的视频上传到视频分享网站' },
+        { id: 29, dim: '表现', text: '唱和声' }, { id: 30, dim: '表现', text: '即兴创作说唱歌词' },
+        { id: 31, dim: '表现', text: '对着观众演奏音乐' }, { id: 32, dim: '表现', text: '参加剧本演出' },
+        { id: 33, dim: '机械', text: '用木头或类似的材料做雕刻' }, { id: 34, dim: '机械', text: '想办法修理死机或中毒的电脑' },
+        { id: 35, dim: '机械', text: '用计算机进行编程' }, { id: 36, dim: '机械', text: '解决数学难题' },
+        { id: 37, dim: '机械', text: '拆卸机器并弄清楚工作原理' }, { id: 38, dim: '机械', text: '组装机械（比如机器人）' },
+        { id: 39, dim: '机械', text: '参与实施或设计一个科学实验' }, { id: 40, dim: '机械', text: '证明几何或代数问题' },
+        { id: 41, dim: '机械', text: '用金属、石头之类的材料搭建东西' }, { id: 42, dim: '艺术', text: '画从没见过的事物（比如外星人）' },
+        { id: 43, dim: '艺术', text: '画出一个人或物体的草图' }, { id: 44, dim: '艺术', text: '随意画不规则或规则图案' },
+        { id: 45, dim: '艺术', text: '用照片作剪报' }, { id: 46, dim: '艺术', text: '从有趣的角度或方式拍摄一张构图好的照片' },
+        { id: 47, dim: '艺术', text: '做雕刻或陶艺' }, { id: 48, dim: '艺术', text: '评判一幅画的内容及优劣之处' },
+        { id: 49, dim: '艺术', text: '对经典的艺术品有自己的解读' }, { id: 50, dim: '艺术', text: '享受参观艺术博物馆的乐趣' }
+    ];
+    const mcpsData = [
+        { id: 1, dim: 'MON', text: '在写论文或做项目时，我会问自己正在做的事情是否有助于实现我的目标。' },
+        { id: 2, dim: 'MON/REG', text: '当我想不出解决问题的新颖方法时，我会重新审视任务要求并尝试理解清楚。' },
+        { id: 3, dim: 'MON/REG', text: '当我在解决问题中遇到困难时，我会改变进行的方式。' },
+        { id: 4, dim: 'PLAN', text: '在开始写论文或做项目之前，我会考虑如何以创新的方式处理问题。' },
+        { id: 5, dim: 'MON', text: '我经常自问一些问题，以确保自己正在接近目标。' },
+        { id: 6, dim: 'REG', text: '在写论文或做作业时，我试图调整我的方法以最好地满足要求。' },
+        { id: 7, dim: 'REG', text: '在写论文或解决问题时，我试图对主题进行创新思考，而不是机械地重复。' },
+        { id: 8, dim: 'PLAN', text: '在为作业做准备时，我会试图找出潜在的问题或我不太理解的地方。' },
+        { id: 9, dim: 'EVAL', text: '完成论文或项目后，我会问自己，我的方案是否达到了目标。' },
+        { id: 10, dim: 'PLAN', text: '在开始写论文或做项目之前，我总是会设定实现目标的步骤。' },
+        { id: 11, dim: 'EVAL', text: '完成论文或项目后，我会问自己，我的方案是否比别人的更具原创性。' }
+    ];
+
+    // ================================================================
+    //  2. 全局状态与工具
+    // ================================================================
+    const state = {
+        subjectId: null,
+        results: { aut: [], rat: [], rat_self_rating: null, fit: [], fit_extra: [], ccaq: [], kdocs: [], mcps: [] },
+        autIndex: 0,
+        fitTaskIndex: 0,
+        fitTasks: [],
+        fitExtraTasks: [],
+        fitPhase: 'required',
+        ccaqIndex: 0,
+        kdocsPage: 0,
+        mcpsPage: 0,
+        timerRAF: null,
+        timeRemaining: 0,
+        timerStart: 0,
+        timeLimit: 0,
+        taskIndex: 0,
+        taskOrder: [],
+        shakeTriggered: false,
+    };
+
+    function shuffle(arr) { for (let i=arr.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+    function generateTaskOrder() {
+        const aTasks = ['aut_instruction', 'rat_instruction', 'fit_instruction'];
+        const bTasks = ['ccaq_instruction', 'kdocs_instruction', 'mcps_instruction'];
+        shuffle(aTasks);
+        shuffle(bTasks);
+        const order = [];
+        for (let i = 0; i < Math.min(aTasks.length, bTasks.length); i++) {
+            order.push(aTasks[i], bTasks[i]);
+        }
+        state.taskOrder = order;
+        state.taskIndex = 0;
+    }
+
+    function prepareFITTasks() {
+        const personal = fitData.filter(d => d.type === 'personal');
+        const social = fitData.filter(d => d.type === 'social');
+        shuffle(personal); shuffle(social);
+        const chosenPersonal = personal.slice(0, 2);
+        const chosenSocial = social.slice(0, 2);
+        const startWithPersonal = Math.random() < 0.5;
+        const tasks = [];
+        const pairs = [ { p: chosenPersonal[0], s: chosenSocial[0] }, { p: chosenPersonal[1], s: chosenSocial[1] } ];
+        pairs.forEach(pair => {
+            if (startWithPersonal) {
+                tasks.push({ type: 'FIT', subtype: 'personal', data: pair.p });
+                tasks.push({ type: 'FIT', subtype: 'social', data: pair.s });
+            } else {
+                tasks.push({ type: 'FIT', subtype: 'social', data: pair.s });
+                tasks.push({ type: 'FIT', subtype: 'personal', data: pair.p });
+            }
+        });
+        state.fitTasks = tasks;
+        state.fitTaskIndex = 0;
+        state.fitPhase = 'required';
+        state.fitExtraPersonal = personal.filter(d => !chosenPersonal.includes(d));
+        state.fitExtraSocial = social.filter(d => !chosenSocial.includes(d));
+    }
+
+    // ================================================================
+    //  3. 计时器
+    // ================================================================
+    function startTimer(seconds, onTimeout) {
+        stopTimer();
+        state.timeRemaining = seconds;
+        state.timerStart = performance.now();
+        state.timeLimit = seconds;
+        state.shakeTriggered = false;
+        updateTimerDisplay();
+        function tick() {
+            const elapsed = (performance.now() - state.timerStart) / 1000;
+            const remaining = Math.max(0, state.timeLimit - elapsed);
+            state.timeRemaining = remaining;
+            updateTimerDisplay();
+            if (remaining <= 0) { stopTimer(); if (onTimeout) onTimeout(); return; }
+            state.timerRAF = requestAnimationFrame(tick);
+        }
+        state.timerRAF = requestAnimationFrame(tick);
+    }
+    function stopTimer() { if (state.timerRAF) { cancelAnimationFrame(state.timerRAF); state.timerRAF = null; } }
+    function updateTimerDisplay() {
+        const el = document.getElementById('timer-display');
+        if (!el) return;
+        const mins = Math.floor(state.timeRemaining / 60);
+        const secs = Math.floor(state.timeRemaining % 60);
+        el.textContent = `⏱ ${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+        el.classList.remove('warning', 'critical', 'shake');
+        if (state.timeRemaining <= 10) {
+            if (!state.shakeTriggered) {
+                state.shakeTriggered = true;
+                el.classList.add('shake');
+                setTimeout(() => { el.classList.remove('shake'); el.classList.add('critical'); }, 500);
+            } else { el.classList.add('critical'); }
+        } else if (state.timeRemaining < 30) { el.classList.add('warning'); }
+    }
+
+    // ================================================================
+    //  4. 通用辅助函数
+    // ================================================================
+    function renderContinueButton(message, nextAction) {
+        render(`<div class="text-center mt-20"><p style="font-size:16px; margin-bottom:20px;">${message}</p><button class="btn" id="continue-btn">继续</button></div>`);
+        document.getElementById('continue-btn').addEventListener('click', () => nextAction());
+    }
+    function renderSelfRating(taskName, nextAction) {
+        let opts = '';
+        for (let i = 10; i <= 100; i += 10) opts += `<label style="display:block;margin:8px 0;"><input type="radio" name="self_rating" value="${i}"> ${i===10?'前10%':`${i-9}%~${i}%`}</label>`;
+        render(`<h2>自我评价</h2><p>刚在这道题目中，你认为自己答案的创造性在所有作答者中的排名在百分之多少？</p><div class="options-row" style="display:block;">${opts}</div><div class="text-center mt-20"><button class="btn" id="confirm-self-rating">确认</button></div>`);
+        document.getElementById('confirm-self-rating').addEventListener('click', () => {
+            const sel = document.querySelector('input[name="self_rating"]:checked');
+            if (!sel) { alert('请选择一个选项'); return; }
+            const val = parseInt(sel.value);
+            if (taskName === 'AUT') state.results.aut[state.results.aut.length-1].self_rating = val;
+            else if (taskName === 'RAT') state.results.rat_self_rating = val;
+            else if (taskName === 'FIT') state.results.fit[state.results.fit.length-1].self_rating = val;
+            nextAction();
+        });
+    }
+    function renderTestInstruction(title, content, nextStep) {
+        const decl = `<div class="warning-box"><strong>📢 本部分答案会受到评分和排名，最终根据答案质量排名发放1-10元奖励，答案质量越高，奖励越多。</strong></div>`;
+        render(`<h2>${title}</h2>${decl}<div class="instruction-box">${content}</div><div class="text-center mt-20"><button class="btn" onclick="goToStep('${nextStep}')">开始</button></div>`);
+    }
+    function renderSurveyInstruction(title, content, nextStep) {
+        const decl = `<div class="warning-box"><strong>📋 本部分作答没有好坏之分，不作为成绩判断和奖励发放的依据。只需根据自身实际情况作答。</strong><br><strong>但随意和不认真的作答可能构成无效问卷，不予发放被试费。</strong></div>`;
+        render(`<h2>${title}</h2>${decl}<div class="instruction-box">${content}</div><div class="text-center mt-20"><button class="btn" onclick="goToStep('${nextStep}')">开始</button></div>`);
+    }
+
+    // ================================================================
+    //  5. 渲染与流程
+    // ================================================================
+    const app = document.getElementById('app');
+    function render(html) { app.innerHTML = html; }
+    function renderProgress(c, t) { return `<div class="progress-bar"><div class="fill" style="width:${Math.round(c/t*100)}%"></div></div><div class="progress-text">${c} / ${t}</div>`; }
+
+    function goToStep(step) {
+        stopTimer();
+        if (step === 'subject_id') {
+            render(`<h2>被试编号</h2><p style="margin-bottom:16px;">请输入您的被试编号（由主试提供）：</p><input type="text" id="subject-id-input" placeholder="例如：001" style="width:100%; padding:12px; font-size:16px; border:1.5px solid #d0d7de; border-radius:8px;"><div class="text-center mt-20"><button class="btn" id="confirm-subject-btn">确认</button></div>`);
+            document.getElementById('confirm-subject-btn').addEventListener('click', () => {
+                const id = document.getElementById('subject-id-input').value.trim();
+                if (!id) { alert('请输入有效的被试编号'); return; }
+                state.subjectId = id; goToStep('welcome');
+            });
+        } else if (step === 'welcome') {
+            generateTaskOrder();
+            render(`<h2>创造性思维练习</h2><div class="instruction-box">欢迎参加本次思维练习！实验包含 <strong>6 个部分</strong>，大约需要 <strong>50-60 分钟</strong>。<br><br><span class="highlight">⏱ 每部分作答有时间限制，计时显示在页面右上角，最后30秒计时变红，最后10秒计时闪烁。</span><br><br><strong>📦 不寻常用途</strong> — 发散性思维<br><strong>🔤 远距离联想</strong> — 聚合性思维<br><strong>🧩 创意组合</strong> — 创造力<br><strong>📋 创造力成就清单：发现自己的闪光点</strong><br><strong>📋 真实的自己：生活与创造</strong><br><strong>📋 真实的自己：思考方式</strong><br><br>请在一个安静的环境中，专注完成所有题目。</div><div class="text-center mt-20"><button class="btn" onclick="goToStep('next_task')">开始</button></div>`);
+        } else if (step === 'next_task') {
+            if (state.taskIndex >= state.taskOrder.length) { goToStep('end'); return; }
+            goToConcreteStep(state.taskOrder[state.taskIndex++]);
+        } else goToConcreteStep(step);
+    }
+
+    function goToConcreteStep(step) {
+        if (step === 'aut_instruction') renderTestInstruction('不寻常用途', `本部分包括两个小题，每题限时<span class="highlight">3分钟</span>。<br>每个小题会给出一个生活中的常见物品，请你在相应答题区<span class="highlight">尽可能多</span>地写出该物品的用途，要求<span class="highlight">新颖且行之有效</span>。<br><br><strong>注意事项：</strong><br>1. 计时结束后答案会自动提交<br>2. 尽量不要提前交卷，如果提前交卷，在想出至少<span class="highlight">10个</span>有效答案后才能点击提交。`, 'aut_task');
+        else if (step === 'aut_task') renderAUTTask();
+        else if (step === 'rat_instruction') renderTestInstruction('远距离联想', `你将看到 <strong>3 个汉字</strong>，它们可以共同组成一个 <strong>新的汉字</strong>。<br>例如：<strong>「疗、防、统」</strong> → 答案是 <strong>「治」</strong>。<br><br>请在输入框中填写你想到的汉字，限时8分钟。`, 'rat_task');
+        else if (step === 'rat_task') renderRATTask();
+        else if (step === 'fit_instruction') { prepareFITTasks(); renderTestInstruction('创意组合', `你将看到 <strong>两个元素</strong> 和 <strong>一个目标</strong>。<br>请提出创造性的方案，通过组合这两个元素来实现目标。<br><br>每道题至少需要提供 <strong>2 个不同的方案</strong> 才能提交。<br>在文本框中输入你的方案，按 <strong>Enter</strong> 新增一行（Shift+Enter 换行）。<br>共 <strong>4 道</strong>必做题。`, 'fit_task'); }
+        else if (step === 'fit_task') renderFITTask();
+        else if (step === 'fit_bonus') renderFITBonusPage();
+        else if (step === 'ccaq_instruction') renderSurveyInstruction('创造力成就清单：发现自己的闪光点', `本问卷包含 <strong>10 个领域</strong>，共<strong>80道题</strong>（视觉艺术、音乐、舞蹈、建筑设计、创造性写作、幽默、发明、科学探究、舞台表演、烹饪艺术）。<br><br>每个领域有若干题目，请根据实际情况选择「是」或「否」。`, 'ccaq_task');
+        else if (step === 'ccaq_task') renderCCAQTask();
+        else if (step === 'kdocs_instruction') renderSurveyInstruction('真实的自己：生活与创造', `共 <strong>50 题</strong>，涵盖日常、学术、表现、机械、艺术 5 个领域。<br>请根据你的实际情况，选择 <strong>1~5 分</strong>。<br>1 = 非常不符合，5 = 非常符合。`, 'kdocs_task');
+        else if (step === 'kdocs_task') renderKDOCSTask();
+        else if (step === 'mcps_instruction') renderSurveyInstruction('真实的自己：思考方式', `共 <strong>11 题</strong>，请根据自身实际情况判断题项描述与你的符合程度。`, 'mcps_task');
+        else if (step === 'mcps_task') renderMCPSTask();
+        else if (step === 'end') showDataSummary();
+    }
+
+    // ================================================================
+    //  6. 各任务实现
+    // ================================================================
+    function setupDynamicInput(containerId, tagName, placeholderBase, initialCount = 1) {
+        const container = document.getElementById(containerId);
+        if (!container) return container;
+        let isComposing = false;
+        container.innerHTML = '';
+        for (let i = 0; i < initialCount; i++) {
+            const el = document.createElement(tagName);
+            if (tagName === 'input') el.type = 'text'; else el.rows = 3;
+            el.placeholder = `${placeholderBase} ${i+1}...`;
+            el.className = tagName === 'input' ? 'aut-input' : 'sig-textarea';
+            container.appendChild(el);
+        }
+        container.querySelector(tagName)?.focus();
+        function addInput() {
+            const inputs = container.querySelectorAll(tagName);
+            const last = inputs[inputs.length-1];
+            if (last && last.value.trim() !== '') {
+                const el = document.createElement(tagName);
+                if (tagName === 'input') el.type = 'text'; else el.rows = 3;
+                el.placeholder = `${placeholderBase} ${inputs.length+1}...`;
+                el.className = tagName === 'input' ? 'aut-input' : 'sig-textarea';
+                container.appendChild(el);
+                setTimeout(() => el.focus(), 30);
+            }
+        }
+        container.addEventListener('compositionstart', ()=> isComposing=true);
+        container.addEventListener('compositionend', ()=> isComposing=false);
+        container.addEventListener('keydown', e => {
+            if (e.key==='Enter' && e.target.tagName===tagName.toUpperCase()) {
+                if (isComposing) return;
+                e.preventDefault();
+                const inputs = container.querySelectorAll(tagName);
+                const last = inputs[inputs.length-1];
+                if (e.target===last && last.value.trim()!=='') addInput();
+                else { const idx = Array.from(inputs).indexOf(e.target); if (idx < inputs.length-1) inputs[idx+1].focus(); }
+            }
+        });
+        return container;
+    }
+
+    function renderAUTTask() {
+        if (state.autIndex >= autData.length) { goToStep('next_task'); return; }
+        const item = autData[state.autIndex];
+        const cid = 'aut-' + item.id;
+        render(`<div class="timer" id="timer-display">⏱ 03:00</div><h2>${item.title}</h2><div style="margin-top:8px;color:#4a5a72;">${item.instruction}</div><div style="margin-top:12px;font-weight:500;color:#1a4b8c;">请逐条输入你的想法（至少10个不同想法）：</div><div class="dynamic-input-container" id="${cid}"></div><div class="input-hint" style="font-size:13px;color:#6b7a8f;margin:4px 0 0 4px;">💡 输入内容后按 <strong>Enter</strong> 新增下一行</div><div class="text-center mt-20"><button class="btn" id="aut-submit-${item.id}">完成并提交（至少10个）</button></div>${renderProgress(state.autIndex+1, autData.length)}`);
+        setupDynamicInput(cid, 'input', '输入第', 5);
+        const btn = document.getElementById('aut-submit-'+item.id);
+        function getAnswers() { return Array.from(document.querySelectorAll(`#${cid} input`)).map(inp=>inp.value.trim()).filter(v=>v); }
+        function finalize() {
+            const answers = getAnswers();
+            state.results.aut.push({ task:'AUT', dimension:item.id, answers });
+            renderSelfRating('AUT', () => {
+                state.autIndex++;
+                if (state.autIndex < autData.length) renderAUTTask(); else goToStep('next_task');
+            });
+        }
+        function manual() {
+            const answers = getAnswers();
+            if (answers.length < 10) { alert('请至少给出 10 个不同的想法后再提交。'); if (!state.timerRAF) startTimer(state.timeRemaining, auto); return; }
+            if (confirm('确定要提交答案吗？提交后将无法修改。')) { stopTimer(); finalize(); }
+        }
+        function auto() { finalize(); }
+        btn.addEventListener('click', manual);
+        startTimer(180, auto);
+    }
+
+    function renderRATTask() {
+        let html = `<div class="timer" id="timer-display">⏱ 08:00</div><h2>远距离联想 (RAT)</h2><p style="color:#6b7a8f;">限时8分钟，请在对应输入框中填写答案。</p><div class="rat-grid">`;
+        ratData.forEach(item => {
+            html += `<div class="rat-item"><span class="qnum">${item.id}</span><span class="clues">${item.clues.split('、').join(' ')}</span><input type="text" class="rat-answer" data-id="${item.id}" placeholder="?" autocomplete="off"></div>`;
+        });
+        html += `</div><div class="text-center mt-20"><button class="btn" id="rat-submit">提交所有答案</button></div>`;
+        render(html);
+        startTimer(480, ()=> document.getElementById('rat-submit').click());
+        document.getElementById('rat-submit').addEventListener('click', ()=>{
+            if (!confirm('确定要提交所有答案吗？提交后将无法修改。')) return;
+            stopTimer();
+            document.querySelectorAll('.rat-answer').forEach(inp => {
+                const id = parseInt(inp.dataset.id);
+                const correct = ratData.find(r=>r.id===id).answer;
+                state.results.rat.push({ trial_id:id, clues:ratData.find(r=>r.id===id).clues, user_answer:inp.value.trim(), correct: inp.value.trim()===correct?1:0, rt:0 });
+            });
+            renderSelfRating('RAT', ()=> goToStep('next_task'));
+        });
+    }
+
+    function renderFITTask() {
+        if (state.fitTaskIndex >= state.fitTasks.length) {
+            if (state.fitPhase==='required') goToStep('fit_bonus'); else goToStep('next_task');
+            return;
+        }
+        const task = state.fitTasks[state.fitTaskIndex];
+        const item = task.data;
+        const cid = 'fit-' + state.fitTaskIndex;
+        render(`<div class="timer" id="timer-display">⏱ 04:00</div><h2>创意组合 (FIT) - ${task.subtype==='personal'?'个人目标':'社会目标'}</h2><div style="display:flex;justify-content:space-between;font-size:13px;color:#6b7a8f;margin-bottom:6px;"><span>第 ${state.fitTaskIndex+1} / ${state.fitTasks.length} 题</span><span>编号: ${item.id}</span></div><div class="sig-combo"><span><strong>元素1：</strong>${item.elem1}</span><span><strong>元素2：</strong>${item.elem2}</span></div><div style="background:#e6f0ff;padding:10px 18px;border-radius:8px;border-left:4px solid #3b7cff;"><strong>目标：</strong>${item.target}</div><div style="margin-top:12px; font-style:italic; color:#4a5a72;">请以创造性的方式组合 ${item.elem1} 和 ${item.elem2} ，从而 ${item.target}。</div><div style="margin-top:12px;font-weight:500;color:#1a4b8c;">请描述你的创造性方案（至少2个不同方案）：</div><div class="dynamic-input-container" id="${cid}"></div><div style="text-align:right;font-size:13px;color:#8a9aa8;margin-top:4px;">按 <strong>Enter</strong> 新增下一行（Shift+Enter 换行）</div><div class="text-center mt-20"><button class="btn" id="fit-submit-${state.fitTaskIndex}">提交答案（至少2个）</button></div>${renderProgress(state.fitTaskIndex+1, state.fitTasks.length)}`);
+        setupDynamicInput(cid, 'textarea', '输入第', 2);
+        const btn = document.getElementById('fit-submit-'+state.fitTaskIndex);
+        function getAnswers() { return Array.from(document.querySelectorAll(`#${cid} textarea`)).map(inp=>inp.value.trim()).filter(v=>v); }
+        function finalize() {
+            const answers = getAnswers();
+            state.results.fit.push({ task:'FIT', phase:state.fitPhase, subtype:task.subtype, trial_id:item.id, elem1:item.elem1, elem2:item.elem2, target:item.target, answers });
+            if (state.fitPhase==='extra') state.results.fit_extra.push({ trial_id:item.id, subtype:task.subtype });
+            state.fitTaskIndex++;
+            let next = state.fitTaskIndex < state.fitTasks.length ? renderFITTask : (state.fitPhase==='required' ? ()=>goToStep('fit_bonus') : ()=>goToStep('next_task'));
+            renderSelfRating('FIT', next);
+        }
+        function manual() {
+            if (getAnswers().length < 2) { alert('请至少给出 2 个不同的方案后再提交。'); if (!state.timerRAF) startTimer(state.timeRemaining, auto); return; }
+            if (confirm('确定要提交答案吗？提交后将无法修改。')) { stopTimer(); finalize(); }
+        }
+        function auto() { finalize(); }
+        btn.addEventListener('click', manual);
+        startTimer(240, auto);
+    }
+
+    function renderFITBonusPage() {
+        if (state.fitExtraPersonal.length===0 || state.fitExtraSocial.length===0) { goToStep('next_task'); return; }
+        render(`<h2>额外挑战邀请</h2><div class="instruction-box"><p>您已完成基础任务！</p><p>现在有一个<strong>自愿</strong>的额外挑战：再完成 <strong>2 道</strong>创意组合题（1道个人目标 + 1道社会目标）。</p><p>若您<strong>认真作答</strong>并提交，将额外获得 <strong>5 元</strong>被试费奖励（原50元被试费不变）。</p><p style="color:#dc2626;">⚠️ 请注意：如果回答明显不认真（如乱填、重复），将无法获得额外奖励。</p></div><div class="text-center mt-20"><button class="btn" id="accept-extra">接受挑战，继续答题</button><button class="btn btn-secondary" id="skip-extra">跳过，继续后续问卷</button></div>`);
+        document.getElementById('accept-extra').addEventListener('click', ()=>{
+            const p = state.fitExtraPersonal[0], s = state.fitExtraSocial[0];
+            const tasks = Math.random()<0.5 ? [ {type:'FIT',subtype:'personal',data:p}, {type:'FIT',subtype:'social',data:s} ] : [ {type:'FIT',subtype:'social',data:s}, {type:'FIT',subtype:'personal',data:p} ];
+            state.fitTasks = tasks; state.fitTaskIndex = 0; state.fitPhase = 'extra'; renderFITTask();
+        });
+        document.getElementById('skip-extra').addEventListener('click', ()=> goToStep('next_task'));
+    }
+
+    // ---------- C-CAQ (已修正变量名) ----------
+    function renderCCAQTask() {
+        if (state.ccaqIndex >= ccaqData.length) { goToStep('next_task'); return; }
+        const domain = ccaqData[state.ccaqIndex];
+        const di = state.ccaqIndex;
+        const desc = domainDescriptions[domain.domain] || '';
+        let html = `<h2>${domain.domain}${desc ? '：' + desc : ''}</h2><p style="color:#6b7a8f;">第 ${di+1}/${ccaqData.length} 个领域</p><div id="ccaq-${di}">`;
+        html += `<div class="question-block"><div class="question-text"><span class="qnum">0</span> ${domain.items[0]}</div><div class="options-row"><label><input type="radio" name="ccaq_${di}_0" value="是" onchange="onCCAQChange(${di})"> 是 <span style="font-size:12px;color:#6b7a8f;">（如果选择此项，即视作你没有本部分后续题目中描述的任何经历）</span></label><label><input type="radio" name="ccaq_${di}_0" value="否" onchange="onCCAQChange(${di})"> 否</label></div></div>`;
+        for (let i=1; i<domain.items.length; i++) {
+            const isBonus = domain.bonusIndices.includes(i);
+            html += `<div class="question-block ccaq-sub-${di}"><div class="question-text"><span class="qnum">${i}</span> ${domain.items[i]}</div><div class="options-row"><label><input type="radio" name="ccaq_${di}_${i}" value="是" onchange="onCCAQBonus(${di}, ${i})"> 是</label><label><input type="radio" name="ccaq_${di}_${i}" value="否" onchange="onCCAQBonus(${di}, ${i})"> 否</label></div>${isBonus ? `<div id="ccaq-bonus-${di}-${i}" style="display:none;margin-top:4px;"><span style="font-size:13px;">这一情况发生过几次？</span><input type="number" class="bonus-input" placeholder="请填写整数" step="1"></div>` : ''}</div>`;
+        }
+        html += `</div><div class="text-center mt-20"><button class="btn" onclick="submitCCAQ(${di})">提交本维度</button></div>${renderProgress(di+1, ccaqData.length)}`;
+        render(html);
+        document.querySelectorAll(`.ccaq-sub-${di}`).forEach(el => el.style.display = 'block');
+    }
+
+    window.onCCAQChange = function(di) {
+        const radios = document.querySelectorAll(`input[name="ccaq_${di}_0"]`);
+        let val = null; radios.forEach(r => { if (r.checked) val = r.value; });
+        const subs = document.querySelectorAll(`.ccaq-sub-${di}`);
+        if (val === '是') {
+            let hasSelection = false;
+            for (let i = 1; i < ccaqData[di].items.length; i++) {
+                const subRadios = document.querySelectorAll(`input[name="ccaq_${di}_${i}"]`);
+                subRadios.forEach(r => { if (r.checked) hasSelection = true; });
+                const bonusInput = document.querySelector(`#ccaq-bonus-${di}-${i} input`);
+                if (bonusInput && bonusInput.value.trim() !== '') hasSelection = true;
+            }
+            if (hasSelection) {
+                alert('后续题目已有选择，不能更改为“是”。');
+                radios.forEach(r => r.checked = false);
+                return;
+            }
+            subs.forEach(el => el.style.display = 'none');
+        } else if (val === '否') {
+            subs.forEach(el => el.style.display = 'block');
+        }
+    };
+
+    window.onCCAQBonus = function(di, qi) {
+        const radios = document.querySelectorAll(`input[name="ccaq_${di}_${qi}"]`);
+        let val = null; radios.forEach(r => { if (r.checked) val = r.value; });
+        const bonusDiv = document.getElementById(`ccaq-bonus-${di}-${qi}`);
+        if (bonusDiv) bonusDiv.style.display = (val === '是') ? 'block' : 'none';
+    };
+
+    window.submitCCAQ = function(di) {
+        const domain = ccaqData[di];
+        const q0Radios = document.querySelectorAll(`input[name="ccaq_${di}_0"]`);
+        let q0Val = null; q0Radios.forEach(r => { if (r.checked) q0Val = r.value; });
+        if (!q0Val) { alert('请回答第0题'); return; }
+        if (q0Val === '是') {
+            state.results.ccaq.push({ domain: domain.domain, q_index: 0, value: '是（无才能）', bonus_text: '' });
+            state.ccaqIndex++; renderCCAQTask(); return;
+        }
+        for (let i = 1; i < domain.items.length; i++) {
+            const radios = document.querySelectorAll(`input[name="ccaq_${di}_${i}"]`);
+            let val = null; radios.forEach(r => { if (r.checked) val = r.value; });
+            if (!val) { alert(`请回答第 ${i} 题`); return; }
+            let bonusText = '';
+            if (val === '是' && domain.bonusIndices.includes(i)) {
+                const bonusInput = document.querySelector(`#ccaq-bonus-${di}-${i} input`);
+                if (bonusInput) {
+                    bonusText = bonusInput.value.trim();
+                    if (bonusText !== '' && !/^-?\d+$/.test(bonusText)) { alert('附加分请填写整数'); return; }
+                }
+            }
+            state.results.ccaq.push({ domain: domain.domain, q_index: i, value: val, bonus_text: bonusText });
+        }
+        state.ccaqIndex++; renderCCAQTask();
+    };
+
+    // ---------- K-DOCS ----------
+    function renderKDOCSTask() {
+        const totalPages = Math.ceil(kdocsData.length / 10);
+        if (state.kdocsPage >= totalPages) { goToStep('next_task'); return; }
+        const start = state.kdocsPage * 10;
+        const end = Math.min(start+10, kdocsData.length);
+        const items = kdocsData.slice(start, end);
+        let html = `<h2>真实的自己：生活与创造</h2><div style="background:#f0f7ff; padding:14px; border-radius:6px; margin-bottom:16px; font-size:14px; line-height:1.8;">与你的年龄和生活经验相似的人比较，你如何评价自己在以下行为上的创造性，即能灵活、有效地处理这些问题。如果这类事没有发生在你身上过，你可以根据类似的情况发生时你会怎么做来选择。<br>表中选项从1—5分别表示能够灵活、有效处理该情况的程度：1 表示与你年龄或生活经验相似的人在遇到该情况并进行应对时，灵活性、有效性最低的情况，5 则表示最高的情况。</div><p style="color:#6b7a8f;">第 ${state.kdocsPage+1}/${totalPages} 页</p><table class="matrix-table"><thead><tr><th style="min-width:200px;">题目</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>`;
+        items.forEach(item => {
+            html += `<tr><td>${item.id}. ${item.text}</td>`;
+            for (let v=1; v<=5; v++) html += `<td onclick="selectMatrix('kdocs_${item.id}',${v})"><span class="radio-cell" id="kdocs_${item.id}_${v}"></span></td>`;
+            html += `</tr>`;
+        });
+        html += `</tbody></table><div class="text-center mt-20"><button class="btn" onclick="submitKDOCSPage()">${state.kdocsPage===totalPages-1?'完成':'下一页'}</button></div>${renderProgress(state.kdocsPage+1, totalPages)}`;
+        render(html);
+    }
+    window.selectMatrix = function(name, value) {
+        const row = document.querySelector(`[id^="${name}_"]`)?.closest('tr');
+        if (row) row.querySelectorAll('.radio-cell').forEach(c => c.classList.remove('selected'));
+        const el = document.getElementById(`${name}_${value}`);
+        if (el) { el.classList.add('selected'); if (!window._matrixData) window._matrixData = {}; window._matrixData[name] = value; }
+    };
+    window.submitKDOCSPage = function() {
+        const start = state.kdocsPage * 10;
+        const end = Math.min(start+10, kdocsData.length);
+        kdocsData.slice(start, end).forEach(item => {
+            const key = `kdocs_${item.id}`;
+            const val = window._matrixData?.[key];
+            if (val == null) { alert(`请回答第 ${item.id} 题`); return; }
+            state.results.kdocs.push({ id: item.id, dim: item.dim, value: val });
+        });
+        state.kdocsPage++; renderKDOCSTask();
+    };
+
+    // ---------- MCPS ----------
+    function renderMCPSTask() {
+        const totalPages = Math.ceil(mcpsData.length / 6);
+        if (state.mcpsPage >= totalPages) { goToStep('next_task'); return; }
+        const start = state.mcpsPage * 6;
+        const end = Math.min(start+6, mcpsData.length);
+        const items = mcpsData.slice(start, end);
+        let html = `<h2>真实的自己：思考方式</h2><p style="color:#4a5a72; margin-bottom:8px;">共11题，请根据自身实际情况判断题项描述与你的符合程度。</p><p style="color:#6b7a8f;">第 ${state.mcpsPage+1}/${totalPages} 页</p><table class="matrix-table"><thead><tr><th style="min-width:200px;">题目</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>`;
+        items.forEach(item => {
+            html += `<tr><td>${item.id}. ${item.text}</td>`;
+            for (let v=1; v<=5; v++) html += `<td onclick="selectMatrix('mcps_${item.id}',${v})"><span class="radio-cell" id="mcps_${item.id}_${v}"></span></td>`;
+            html += `</tr>`;
+        });
+        html += `</tbody></table><div class="text-center mt-20"><button class="btn" onclick="submitMCPSPage()">${state.mcpsPage===totalPages-1?'完成':'下一页'}</button></div>${renderProgress(state.mcpsPage+1, totalPages)}`;
+        render(html);
+    }
+    window.submitMCPSPage = function() {
+        const start = state.mcpsPage * 6;
+        const end = Math.min(start+6, mcpsData.length);
+        mcpsData.slice(start, end).forEach(item => {
+            const key = `mcps_${item.id}`;
+            const val = window._matrixData?.[key];
+            if (val == null) { alert(`请回答第 ${item.id} 题`); return; }
+            state.results.mcps.push({ id: item.id, dim: item.dim, value: val });
+        });
+        state.mcpsPage++; renderMCPSTask();
+    };
+
+    // ---------- 数据导出 ----------
+    function showDataSummary() {
+        const finalData = { subject_id: state.subjectId, ...state.results };
+        const json = JSON.stringify(finalData, null, 2);
+        render(`<h2>实验已完成</h2><p style="color:#4a5a72;margin-bottom:12px;">感谢参与！请下载数据。</p><div class="data-output">${json}</div><div class="text-center mt-20"><button class="btn" onclick="downloadData('json')">下载 JSON</button><button class="btn" onclick="downloadData('csv')">下载 CSV</button><button class="btn btn-secondary" onclick="copyData()">复制到剪贴板</button></div>`);
+    }
+    window.downloadData = function(format) {
+        const finalData = { subject_id: state.subjectId, ...state.results };
+        let content, filename, mime;
+        if (format === 'json') { content = JSON.stringify(finalData, null, 2); filename = 'experiment_data.json'; mime = 'application/json'; }
+        else {
+            let csv = 'task,key,value\n';
+            csv += `subject_id,${state.subjectId},\n`;
+            Object.keys(state.results).forEach(task => {
+                const arr = state.results[task];
+                if (Array.isArray(arr)) arr.forEach((item, idx) => { csv += `${task},${idx},${JSON.stringify(item).replace(/,/g,';')}\n`; });
+            });
+            content = csv; filename = 'experiment_data.csv'; mime = 'text/csv';
+        }
+        const blob = new Blob([content], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    };
+    window.copyData = function() {
+        const json = JSON.stringify({ subject_id: state.subjectId, ...state.results }, null, 2);
+        navigator.clipboard.writeText(json).then(() => alert('数据已复制')).catch(() => alert('请手动复制'));
+    };
+
+    // 启动
+    window.goToStep = goToStep;
+    goToStep('subject_id');
+</script>
+</body>
+</html>
