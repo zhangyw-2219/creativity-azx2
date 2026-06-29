@@ -70,7 +70,7 @@
 <div id="app"></div>
 <script>
     // ================================================================
-    //  1. 数据定义
+    //  1. 数据定义 (V4)
     // ================================================================
     const autData = [
         { id: 'box', title: '纸盒', instruction: `许多人把空纸盒都扔掉了，而它们却有着成千上万种有趣而不寻常的用处。在以下的空栏中，请列出你所能想象的这些有趣和不寻常的用处。你不要受盒子的体积和数目的限制，也不要局限于你所见所闻的用处，尽量考虑多种新奇的用法。<br><br><strong>想法越多越好，越新奇越好，试想出其他人想不到的用处。</strong>` },
@@ -173,6 +173,8 @@
         subjectId: null,
         demographics: null,
         results: { aut: [], rat: [], rat_self_rating: null, fit: [], fit_extra: [], ccaq: [], kdocs: [], mcps: [] },
+        taskOrderList: [],
+        taskTimings: [],
         autIndex: 0,
         fitTaskIndex: 0,
         fitTasks: [],
@@ -191,7 +193,9 @@
         currentTaskTiming: null,
         ratTimings: [],
         pageEntryTime: 0,
-        matrixItemTimings: {}
+        matrixItemTimings: {},
+        ccaqStartTime: 0,
+        ccaqItemTimings: {}
     };
 
     const STORAGE_PREFIX = 'creativity_exp_';
@@ -212,6 +216,8 @@
             mcpsPage: state.mcpsPage,
             taskIndex: state.taskIndex,
             taskOrder: state.taskOrder,
+            taskOrderList: state.taskOrderList,
+            taskTimings: state.taskTimings,
         };
         localStorage.setItem(STORAGE_PREFIX + state.subjectId, JSON.stringify(clone));
     }
@@ -235,6 +241,8 @@
         state.mcpsPage = saved.mcpsPage || 0;
         state.taskIndex = saved.taskIndex || 0;
         state.taskOrder = saved.taskOrder || [];
+        state.taskOrderList = saved.taskOrderList || [];
+        state.taskTimings = saved.taskTimings || [];
     }
 
     function shuffle(arr) { for (let i=arr.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
@@ -250,6 +258,7 @@
         }
         state.taskOrder = order;
         state.taskIndex = 0;
+        state.taskOrderList = order.map(s => s.replace('_instruction', ''));
     }
 
     function prepareFITTasks() {
@@ -278,7 +287,56 @@
     }
 
     // ================================================================
-    //  3. 计时器
+    //  3. 密码验证 (新增)
+    // ================================================================
+    const MASTER_PASSWORD = 'admin2024';
+
+    function generateDailyPassword() {
+        const now = new Date();
+        const year = now.getFullYear().toString();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const dateStr = year + month + day;
+        const plusOne = dateStr.split('').map(d => (parseInt(d) + 1) % 10).join('');
+        const front7 = plusOne.substring(0, 7);
+        const lastDigit = plusOne[7];
+        const secret = 'zhangyw';
+        let transformed = '';
+        for (let i = 0; i < 7; i++) {
+            const digit = parseInt(front7[i]);
+            const keyVal = secret[i].charCodeAt(0) - 97;
+            transformed += String.fromCharCode((digit + keyVal) % 26 + 97);
+        }
+        return transformed + lastDigit;
+    }
+
+    function showPasswordGate() {
+        render(`
+            <h2>实验访问验证</h2>
+            <p>请输入主试提供的密码：</p>
+            <input type="password" id="pwd-input" style="width:100%; padding:12px; font-size:16px; border:1.5px solid #d0d7de; border-radius:8px;">
+            <div class="text-center mt-20"><button class="btn" id="pwd-btn">确认</button></div>
+        `);
+        document.getElementById('pwd-btn').addEventListener('click', () => {
+            const inputPwd = document.getElementById('pwd-input').value.trim();
+            if (inputPwd === generateDailyPassword() || inputPwd === MASTER_PASSWORD) {
+                goToStep('subject_id');
+            } else {
+                alert('密码错误，请重试。');
+            }
+        });
+    }
+
+    // 禁用右键和部分快捷键
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) || (e.ctrlKey && e.key === 'U')) {
+            e.preventDefault();
+        }
+    });
+
+    // ================================================================
+    //  4. 计时器与辅助函数
     // ================================================================
     function startTimer(seconds, onTimeout) {
         stopTimer();
@@ -314,9 +372,6 @@
         } else if (state.timeRemaining < 30) { el.classList.add('warning'); }
     }
 
-    // ================================================================
-    //  4. 通用辅助函数
-    // ================================================================
     function renderContinueButton(message, nextAction) {
         render(`<div class="text-center mt-20"><p style="font-size:16px; margin-bottom:20px;">${message}</p><button class="btn" id="continue-btn">继续</button></div>`);
         document.getElementById('continue-btn').addEventListener('click', () => {
@@ -339,11 +394,27 @@
             nextAction();
         });
     }
+    function recordTaskStart(name) {
+        const existing = state.taskTimings.find(t => t.name === name);
+        if (!existing) {
+            state.taskTimings.push({ name, startTime: Date.now(), endTime: null });
+        } else {
+            existing.startTime = Date.now();
+        }
+    }
+    function recordTaskEnd(name) {
+        const existing = state.taskTimings.find(t => t.name === name);
+        if (existing) existing.endTime = Date.now();
+    }
     function renderTestInstruction(title, content, nextStep) {
+        const taskName = title.split(' ')[0];
+        recordTaskStart(taskName);
         const decl = `<div class="warning-box"><strong>📢 本部分答案会受到评分和排名，最终根据答案质量排名发放1-10元奖励，答案质量越高，奖励越多。</strong></div>`;
         render(`<h2>${title}</h2>${decl}<div class="instruction-box">${content}</div><div class="text-center mt-20"><button class="btn" onclick="goToStep('${nextStep}')">开始</button></div>`);
     }
     function renderSurveyInstruction(title, content, nextStep) {
+        const taskName = title.split('：')[0];
+        recordTaskStart(taskName);
         const decl = `<div class="warning-box"><strong>📋 本部分作答没有好坏之分，不作为成绩判断和奖励发放的依据。只需根据自身实际情况作答。</strong><br><strong>但随意和不认真的作答可能构成无效问卷，不予发放被试费。</strong></div>`;
         render(`<h2>${title}</h2>${decl}<div class="instruction-box">${content}</div><div class="text-center mt-20"><button class="btn" onclick="goToStep('${nextStep}')">开始</button></div>`);
     }
@@ -424,24 +495,40 @@
     }
 
     function goToConcreteStep(step) {
-        if (step === 'aut_instruction') renderTestInstruction('不寻常用途', `本部分包括两个小题，每题限时<span class="highlight">3分钟</span>。<br>每个小题会给出一个生活中的常见物品，请你在相应答题区<span class="highlight">尽可能多</span>地写出该物品的用途，要求<span class="highlight">新颖且行之有效</span>。<br><br><strong>注意事项：</strong><br>1. 计时结束后答案会自动提交<br>2. 尽量不要提前交卷，如果提前交卷，在想出至少<span class="highlight">10个</span>有效答案后才能点击提交。`, 'aut_task');
-        else if (step === 'aut_task') renderAUTTask();
-        else if (step === 'rat_instruction') renderTestInstruction('远距离联想', `你将看到 <strong>3 个汉字</strong>，它们可以共同组成一个 <strong>新的汉字</strong>。<br>例如：<strong>「疗、防、统」</strong> → 答案是 <strong>「治」</strong>。<br><br>请在输入框中填写你想到的汉字，限时8分钟。`, 'rat_task');
-        else if (step === 'rat_task') renderRATTask();
-        else if (step === 'fit_instruction') { prepareFITTasks(); renderTestInstruction('创意组合', `你将看到 <strong>两个元素</strong> 和 <strong>一个目标</strong>。<br>请提出创造性的方案，通过组合这两个元素来实现目标。<br><br>每道题至少需要提供 <strong>2 个不同的方案</strong> 才能提交。<br>在文本框中输入你的方案，按 <strong>Enter</strong> 新增一行（Shift+Enter 换行）。<br>共 <strong>4 道</strong>必做题。`, 'fit_task'); }
-        else if (step === 'fit_task') renderFITTask();
+        if (step === 'aut_instruction') {
+            recordTaskStart('AUT');
+            renderTestInstruction('不寻常用途', `本部分包括两个小题，每题限时<span class="highlight">3分钟</span>。<br>每个小题会给出一个生活中的常见物品，请你在相应答题区<span class="highlight">尽可能多</span>地写出该物品的用途，要求<span class="highlight">新颖且行之有效</span>。<br><br><strong>注意事项：</strong><br>1. 计时结束后答案会自动提交<br>2. 尽量不要提前交卷，如果提前交卷，在想出至少<span class="highlight">10个</span>有效答案后才能点击提交。`, 'aut_task');
+        } else if (step === 'aut_task') renderAUTTask();
+        else if (step === 'rat_instruction') {
+            recordTaskStart('RAT');
+            renderTestInstruction('远距离联想', `你将看到 <strong>3 个汉字</strong>，它们可以共同组成一个 <strong>新的汉字</strong>。<br>例如：<strong>「疗、防、统」</strong> → 答案是 <strong>「治」</strong>。<br><br>请在输入框中填写你想到的汉字，限时8分钟。`, 'rat_task');
+        } else if (step === 'rat_task') renderRATTask();
+        else if (step === 'fit_instruction') {
+            recordTaskStart('FIT');
+            prepareFITTasks();
+            renderTestInstruction('创意组合', `你将看到 <strong>两个元素</strong> 和 <strong>一个目标</strong>。<br>请提出创造性的方案，通过组合这两个元素来实现目标。<br><br>每道题至少需要提供 <strong>2 个不同的方案</strong> 才能提交。<br>在文本框中输入你的方案，按 <strong>Enter</strong> 新增一行（Shift+Enter 换行）。<br>共 <strong>4 道</strong>必做题。`, 'fit_task');
+        } else if (step === 'fit_task') renderFITTask();
         else if (step === 'fit_bonus') renderFITBonusPage();
-        else if (step === 'ccaq_instruction') renderSurveyInstruction('创造力成就清单：发现自己的闪光点', `本问卷包含 <strong>10 个领域</strong>，共<strong>80道题</strong>（视觉艺术、音乐、舞蹈、建筑设计、创造性写作、幽默、发明、科学探究、舞台表演、烹饪艺术）。<br><br>每个领域有若干题目，请根据实际情况选择「是」或「否」。`, 'ccaq_task');
-        else if (step === 'ccaq_task') renderCCAQTask();
-        else if (step === 'kdocs_instruction') renderSurveyInstruction('真实的自己：生活与创造', `共 <strong>50 题</strong>，涵盖日常、学术、表现、机械、艺术 5 个领域。<br>请根据你的实际情况，选择 <strong>1~5 分</strong>。<br>1 = 非常不符合，5 = 非常符合。`, 'kdocs_task');
-        else if (step === 'kdocs_task') renderKDOCSTask();
-        else if (step === 'mcps_instruction') renderSurveyInstruction('真实的自己：思考方式', `共 <strong>11 题</strong>，请根据自身实际情况判断题项描述与你的符合程度。1 = 非常不符合，5 = 非常符合。`, 'mcps_task');
-        else if (step === 'mcps_task') renderMCPSTask();
-        else if (step === 'end') showDataSummary();
+        else if (step === 'ccaq_instruction') {
+            recordTaskStart('创造力成就清单');
+            renderSurveyInstruction('创造力成就清单：发现自己的闪光点', `本问卷包含 <strong>10 个领域</strong>，共<strong>80道题</strong>（视觉艺术、音乐、舞蹈、建筑设计、创造性写作、幽默、发明、科学探究、舞台表演、烹饪艺术）。<br><br>每个领域有若干题目，请根据实际情况选择「是」或「否」。`, 'ccaq_task');
+        } else if (step === 'ccaq_task') renderCCAQTask();
+        else if (step === 'kdocs_instruction') {
+            recordTaskStart('真实的自己：生活与创造');
+            renderSurveyInstruction('真实的自己：生活与创造', `共 <strong>50 题</strong>，涵盖日常、学术、表现、机械、艺术 5 个领域。<br>请根据你的实际情况，选择 <strong>1~5 分</strong>。<br>1 = 非常不符合，5 = 非常符合。`, 'kdocs_task');
+        } else if (step === 'kdocs_task') renderKDOCSTask();
+        else if (step === 'mcps_instruction') {
+            recordTaskStart('真实的自己：思考方式');
+            renderSurveyInstruction('真实的自己：思考方式', `共 <strong>11 题</strong>，请根据自身实际情况判断题项描述与你的符合程度。1 = 非常不符合，5 = 非常符合。`, 'mcps_task');
+        } else if (step === 'mcps_task') renderMCPSTask();
+        else if (step === 'end') {
+            state.taskTimings.forEach(t => { if (!t.endTime) t.endTime = Date.now(); });
+            showDataSummary();
+        }
     }
 
     // ================================================================
-    //  6. 各任务实现 (已增加 text 字段)
+    //  6. 各任务实现 (修复RAT强制提交)
     // ================================================================
     function setupDynamicInput(containerId, tagName, placeholderBase, initialCount = 1) {
         const container = document.getElementById(containerId);
@@ -490,7 +577,6 @@
                 state.currentTaskTiming.lastInput = now;
                 data.lastKey = now;
                 data.charCount = el.value.length;
-                // 记录每次输入事件的完整文本
                 data.events.push({
                     time: now,
                     charCount: el.value.length,
@@ -531,7 +617,11 @@
     }
 
     function renderAUTTask() {
-        if (state.autIndex >= shuffledAutData.length) { goToStep('next_task'); return; }
+        if (state.autIndex >= shuffledAutData.length) {
+            recordTaskEnd('AUT');
+            goToStep('next_task');
+            return;
+        }
         const item = shuffledAutData[state.autIndex];
         const cid = 'aut-' + item.id;
         render(`<div class="timer" id="timer-display">⏱ 03:00</div><h2>${item.title}</h2><div style="margin-top:8px;color:#4a5a72;">${item.instruction}</div><div style="margin-top:12px;font-weight:500;color:#1a4b8c;">请逐条输入你的想法（至少10个不同想法）：</div><div class="dynamic-input-container" id="${cid}"></div><div class="input-hint" style="font-size:13px;color:#6b7a8f;margin:4px 0 0 4px;">💡 输入内容后按 <strong>Enter</strong> 新增下一行</div><div class="text-center mt-20"><button class="btn" id="aut-submit-${item.id}">完成并提交（至少10个）</button></div>${renderProgress(state.autIndex+1, shuffledAutData.length)}`);
@@ -545,7 +635,11 @@
             state.results.aut.push({ task:'AUT', dimension:item.id, answers, timing });
             renderSelfRating('AUT', () => {
                 state.autIndex++;
-                if (state.autIndex < shuffledAutData.length) renderAUTTask(); else goToStep('next_task');
+                if (state.autIndex < shuffledAutData.length) renderAUTTask();
+                else {
+                    recordTaskEnd('AUT');
+                    goToStep('next_task');
+                }
             });
         }
         function manual() {
@@ -581,10 +675,11 @@
                 });
             });
         });
-        startTimer(480, ()=> document.getElementById('rat-submit').click());
-        document.getElementById('rat-submit').addEventListener('click', ()=>{
-            if (!confirm('确定要提交所有答案吗？提交后将无法修改。')) return;
+
+        // 强制提交函数（无确认）
+        function forceSubmit() {
             stopTimer();
+            recordTaskEnd('RAT');
             const submitTime = Date.now();
             document.querySelectorAll('.rat-answer').forEach(inp => {
                 const id = parseInt(inp.dataset.id);
@@ -606,11 +701,19 @@
                 state.results.rat_self_rating = state.results.rat_self_rating;
                 goToStep('next_task');
             });
+        }
+
+        startTimer(480, forceSubmit); // 定时器超时直接强制提交
+
+        document.getElementById('rat-submit').addEventListener('click', ()=>{
+            if (!confirm('确定要提交所有答案吗？提交后将无法修改。')) return;
+            forceSubmit(); // 手动提交仍保留确认
         });
     }
 
     function renderFITTask() {
         if (state.fitTaskIndex >= state.fitTasks.length) {
+            recordTaskEnd('FIT');
             if (state.fitPhase==='required') goToStep('fit_bonus'); else goToStep('next_task');
             return;
         }
@@ -628,7 +731,7 @@
             state.results.fit.push({ task:'FIT', phase:state.fitPhase, subtype:task.subtype, trial_id:item.id, elem1:item.elem1, elem2:item.elem2, target:item.target, answers, timing });
             if (state.fitPhase==='extra') state.results.fit_extra.push({ trial_id:item.id, subtype:task.subtype });
             state.fitTaskIndex++;
-            let next = state.fitTaskIndex < state.fitTasks.length ? renderFITTask : (state.fitPhase==='required' ? ()=>goToStep('fit_bonus') : ()=>goToStep('next_task'));
+            let next = state.fitTaskIndex < state.fitTasks.length ? renderFITTask : (state.fitPhase==='required' ? ()=>{ recordTaskEnd('FIT'); goToStep('fit_bonus'); } : ()=>{ recordTaskEnd('FIT'); goToStep('next_task'); });
             renderSelfRating('FIT', next);
         }
         function manual() {
@@ -652,16 +755,38 @@
     }
 
     // ---------- C-CAQ ----------
+    function initCCAQTiming(di) {
+        state.ccaqStartTime = Date.now();
+        state.ccaqItemTimings = {};
+        const domain = ccaqData[di];
+        for (let i=0; i<domain.items.length; i++) {
+            state.ccaqItemTimings[i] = { firstClick: null, lastClick: null };
+        }
+    }
+    function recordCCAQClick(di, qi) {
+        const now = Date.now();
+        if (!state.ccaqItemTimings[qi].firstClick) state.ccaqItemTimings[qi].firstClick = now;
+        state.ccaqItemTimings[qi].lastClick = now;
+    }
+    function finalizeCCAQTiming() {
+        return {
+            startTime: state.ccaqStartTime,
+            submitTime: Date.now(),
+            items: { ...state.ccaqItemTimings }
+        };
+    }
+
     function renderCCAQTask() {
-        if (state.ccaqIndex >= ccaqData.length) { goToStep('next_task'); return; }
+        if (state.ccaqIndex >= ccaqData.length) { recordTaskEnd('创造力成就清单'); goToStep('next_task'); return; }
+        initCCAQTiming(state.ccaqIndex);
         const domain = ccaqData[state.ccaqIndex];
         const di = state.ccaqIndex;
         const desc = domainDescriptions[domain.domain] || '';
         let html = `<h2>${domain.domain}${desc ? '：' + desc : ''}</h2><p style="color:#6b7a8f;">第 ${di+1}/${ccaqData.length} 个领域</p><div id="ccaq-${di}">`;
-        html += `<div class="question-block"><div class="question-text"><span class="qnum">0</span> ${domain.items[0]}</div><div class="options-row"><label><input type="radio" name="ccaq_${di}_0" value="是" onchange="onCCAQChange(${di})"> 是 <span style="font-size:12px;color:#6b7a8f;">（如果选择此项，即视作你没有本部分后续题目中描述的任何经历）</span></label><label><input type="radio" name="ccaq_${di}_0" value="否" onchange="onCCAQChange(${di})"> 否</label></div></div>`;
+        html += `<div class="question-block"><div class="question-text"><span class="qnum">0</span> ${domain.items[0]}</div><div class="options-row"><label><input type="radio" name="ccaq_${di}_0" value="是" onchange="recordCCAQClick(${di},0);onCCAQChange(${di})"> 是 <span style="font-size:12px;color:#6b7a8f;">（如果选择此项，即视作你没有本部分后续题目中描述的任何经历）</span></label><label><input type="radio" name="ccaq_${di}_0" value="否" onchange="recordCCAQClick(${di},0);onCCAQChange(${di})"> 否</label></div></div>`;
         for (let i=1; i<domain.items.length; i++) {
             const isBonus = domain.bonusIndices.includes(i);
-            html += `<div class="question-block ccaq-sub-${di}"><div class="question-text"><span class="qnum">${i}</span> ${domain.items[i]}</div><div class="options-row"><label><input type="radio" name="ccaq_${di}_${i}" value="是" onchange="onCCAQBonus(${di}, ${i})"> 是</label><label><input type="radio" name="ccaq_${di}_${i}" value="否" onchange="onCCAQBonus(${di}, ${i})"> 否</label></div>${isBonus ? `<div id="ccaq-bonus-${di}-${i}" style="display:none;margin-top:4px;"><span style="font-size:13px;">这一情况发生过几次？</span><input type="number" class="bonus-input" placeholder="请填写整数" step="1"></div>` : ''}</div>`;
+            html += `<div class="question-block ccaq-sub-${di}"><div class="question-text"><span class="qnum">${i}</span> ${domain.items[i]}</div><div class="options-row"><label><input type="radio" name="ccaq_${di}_${i}" value="是" onchange="recordCCAQClick(${di},${i});onCCAQBonus(${di}, ${i})"> 是</label><label><input type="radio" name="ccaq_${di}_${i}" value="否" onchange="recordCCAQClick(${di},${i});onCCAQBonus(${di}, ${i})"> 否</label></div>${isBonus ? `<div id="ccaq-bonus-${di}-${i}" style="display:none;margin-top:4px;"><span style="font-size:13px;">这一情况发生过几次？</span><input type="number" class="bonus-input" placeholder="请填写整数" step="1"></div>` : ''}</div>`;
         }
         html += `</div><div class="text-center mt-20"><button class="btn" onclick="submitCCAQ(${di})">提交本维度</button></div>${renderProgress(di+1, ccaqData.length)}`;
         render(html);
@@ -700,8 +825,9 @@
         const q0Radios = document.querySelectorAll(`input[name="ccaq_${di}_0"]`);
         let q0Val = null; q0Radios.forEach(r => { if (r.checked) q0Val = r.value; });
         if (!q0Val) { alert('请回答第0题'); return; }
+        const timing = finalizeCCAQTiming();
         if (q0Val === '是') {
-            state.results.ccaq.push({ domain: domain.domain, q_index: 0, value: '是（无才能）', bonus_text: '' });
+            state.results.ccaq.push({ domain: domain.domain, q_index: 0, value: '是（无才能）', bonus_text: '', timing });
             state.ccaqIndex++; renderCCAQTask(); return;
         }
         for (let i = 1; i < domain.items.length; i++) {
@@ -717,12 +843,12 @@
                     if (!/^-?\d+$/.test(bonusText)) { alert('附加分请填写整数'); return; }
                 }
             }
-            state.results.ccaq.push({ domain: domain.domain, q_index: i, value: val, bonus_text: bonusText });
+            state.results.ccaq.push({ domain: domain.domain, q_index: i, value: val, bonus_text: bonusText, timing });
         }
         state.ccaqIndex++; renderCCAQTask();
     };
 
-    // ---------- K-DOCS 与 MCPS (修改 timing 结构) ----------
+    // ---------- K-DOCS 与 MCPS ----------
     function initMatrixTiming(items) {
         state.pageEntryTime = Date.now();
         state.matrixItemTimings = {};
@@ -754,7 +880,7 @@
 
     function renderKDOCSTask() {
         const totalPages = Math.ceil(kdocsData.length / 10);
-        if (state.kdocsPage >= totalPages) { goToStep('next_task'); return; }
+        if (state.kdocsPage >= totalPages) { recordTaskEnd('真实的自己：生活与创造'); goToStep('next_task'); return; }
         const start = state.kdocsPage * 10;
         const end = Math.min(start+10, kdocsData.length);
         const items = kdocsData.slice(start, end);
@@ -790,12 +916,12 @@
 
     function renderMCPSTask() {
         const totalPages = Math.ceil(mcpsData.length / 6);
-        if (state.mcpsPage >= totalPages) { goToStep('next_task'); return; }
+        if (state.mcpsPage >= totalPages) { recordTaskEnd('真实的自己：思考方式'); goToStep('next_task'); return; }
         const start = state.mcpsPage * 6;
         const end = Math.min(start+6, mcpsData.length);
         const items = mcpsData.slice(start, end);
         initMatrixTiming(items);
-        let html = `<h2>真实的自己：思考方式</h2><p style="color:#4a5a72; margin-bottom:8px;">共11题，请根据自身实际情况判断题项描述与你的符合程度。</p><p style="color:#6b7a8f;">第 ${state.mcpsPage+1}/${totalPages} 页</p><table class="matrix-table"><thead><tr><th style="min-width:200px;">题目</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>`;
+        let html = `<h2>真实的自己：思考方式</h2><p style="color:#4a5a72; margin-bottom:8px;">共11题，请根据自身实际情况判断题项描述与你的符合程度。1 = 非常不符合，5 = 非常符合。</p><p style="color:#6b7a8f;">第 ${state.mcpsPage+1}/${totalPages} 页</p><table class="matrix-table"><thead><tr><th style="min-width:200px;">题目</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>`;
         items.forEach(item => {
             html += `<tr><td>${item.id}. ${item.text}</td>`;
             for (let v=1; v<=5; v++) html += `<td onclick="selectMatrix('mcps_${item.id}',${v})"><span class="radio-cell" id="mcps_${item.id}_${v}"></span></td>`;
@@ -826,12 +952,24 @@
 
     // ---------- 数据导出 ----------
     function showDataSummary() {
-        const finalData = { subject_id: state.subjectId, demographics: state.demographics, ...state.results };
+        const finalData = {
+            subject_id: state.subjectId,
+            demographics: state.demographics,
+            task_order: state.taskOrderList,
+            task_timings: state.taskTimings,
+            ...state.results
+        };
         const json = JSON.stringify(finalData, null, 2);
         render(`<h2>实验已完成</h2><p style="color:#4a5a72;margin-bottom:12px;">感谢参与！请下载数据。</p><div class="data-output">${json}</div><div class="text-center mt-20"><button class="btn" onclick="downloadData('json')">下载 JSON</button><button class="btn" onclick="downloadData('csv')">下载 CSV</button><button class="btn btn-secondary" onclick="copyData()">复制到剪贴板</button></div>`);
     }
     window.downloadData = function(format) {
-        const finalData = { subject_id: state.subjectId, demographics: state.demographics, ...state.results };
+        const finalData = {
+            subject_id: state.subjectId,
+            demographics: state.demographics,
+            task_order: state.taskOrderList,
+            task_timings: state.taskTimings,
+            ...state.results
+        };
         let content, filename, mime;
         const prefix = state.subjectId ? `subject_${state.subjectId}` : 'experiment';
         if (format === 'json') { content = JSON.stringify(finalData, null, 2); filename = `${prefix}_data.json`; mime = 'application/json'; }
@@ -849,15 +987,20 @@
         const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     };
     window.copyData = function() {
-        const finalData = { subject_id: state.subjectId, demographics: state.demographics, ...state.results };
+        const finalData = {
+            subject_id: state.subjectId,
+            demographics: state.demographics,
+            task_order: state.taskOrderList,
+            task_timings: state.taskTimings,
+            ...state.results
+        };
         const json = JSON.stringify(finalData, null, 2);
         navigator.clipboard.writeText(json).then(() => alert('数据已复制')).catch(() => alert('请手动复制'));
     };
 
-    // 初始化
+    // 启动
     initAUTOrder();
-    window.goToStep = goToStep;
-    goToStep('subject_id');
+    showPasswordGate();
 </script>
 </body>
 </html>
