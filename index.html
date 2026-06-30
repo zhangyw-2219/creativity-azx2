@@ -501,7 +501,7 @@
         } else if (step === 'aut_task') renderAUTTask();
         else if (step === 'rat_instruction') {
             recordTaskStart('RAT');
-            renderTestInstruction('远距离联想', `你将看到 <strong>3 个汉字</strong>，它们可以共同组成一个 <strong>新的汉字</strong>。<br>例如：<strong>「疗、防、统」</strong> → 答案是 <strong>「治」</strong>。<br><br>请在输入框中填写你想到的汉字，限时8分钟。`, 'rat_task');
+            renderTestInstruction('远距离联想', `你将看到 <strong>3 个汉字</strong>，它们可以都结合<strong>1个相同汉字</strong>组成 <strong>词语</strong>。<br>例如：<strong>「疗、防、统」</strong> → 答案是 <strong>「治」</strong>。<br><br>请在输入框中填写你想到的汉字，限时8分钟。`, 'rat_task');
         } else if (step === 'rat_task') renderRATTask();
         else if (step === 'fit_instruction') {
             recordTaskStart('FIT');
